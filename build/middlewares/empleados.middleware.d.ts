@@ -1,0 +1,4 @@
+export declare const createEmployeeMiddleware: (((req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => import("express").Response<any, Record<string, any>> | undefined) | import("express-validator").ValidationChain)[];
+export declare const updateEmployeeMiddleware: (((req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => import("express").Response<any, Record<string, any>> | undefined) | import("express-validator").ValidationChain)[];
+export declare const getOneEmployeeMiddleware: (((req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => import("express").Response<any, Record<string, any>> | undefined) | import("express-validator").ValidationChain)[];
+//# sourceMappingURL=empleados.middleware.d.ts.map

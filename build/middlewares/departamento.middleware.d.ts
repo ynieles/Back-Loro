@@ -1,0 +1,2 @@
+export declare const createDepartmentMiddleware: (((req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => import("express").Response<any, Record<string, any>> | undefined) | import("express-validator").ValidationChain)[];
+//# sourceMappingURL=departamento.middleware.d.ts.map

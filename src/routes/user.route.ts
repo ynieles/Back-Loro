@@ -21,7 +21,7 @@ const adminOnly = requireRole(["admin", "administrador"]);
 
 router.get("/", adminOnly, getUsers);
 router.get("/:id", adminOnly, getOneUser);
-router.post("/",  createUserMiddleware, createUser);
+router.post("/", adminOnly, createUserMiddleware, createUser);
 router.put("/:id", adminOnly, updateUserMiddleware, updateUser);
 router.patch("/password/:id", adminOnly, updatePasswordMiddleware, updateUserPassword);
 router.delete("/:id", adminOnly, deleteUser);

@@ -14,7 +14,7 @@ export const login = async (req: Request, res: Response) => {
   });
 
   if (error) {
-    consloe.log(error)
+    console.log(error)
     return res.status(400).json({ error: error.message });
   }
 

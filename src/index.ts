@@ -39,9 +39,9 @@ const loginLimiter = rateLimit({
 
 app.use("/api/login", loginLimiter, loginMiddleware, login);
 
-app.use("/api/user", userRouter);
-
 app.use(authMiddleware);
+
+app.use("/api/user", userRouter);
 
 app.use("/api/employee", empleadosRouter);
 

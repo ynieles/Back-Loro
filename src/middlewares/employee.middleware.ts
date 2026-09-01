@@ -20,11 +20,7 @@ export const updateEmployeeMiddleware = [
     .notEmpty()
     .withMessage("EL nombre es requerido")
     .isString(),
-  body("departamento_id")
-    .trim()
-    .notEmpty()
-    .withMessage("El departamento es requerido")
-    .isInt(),
+  body("rol_id").trim().notEmpty().withMessage("El rol es requerido").isInt(),
   validator,
 ];
 
@@ -33,6 +29,14 @@ export const getOneEmployeeMiddleware = [
   validator,
 ];
 
-export const deleteEmployeeMiddleware = [param("id").isInt(), validator];
+export const deleteEmployeeMiddleware = [
+  param("id").isInt(),
+  body("motivo")
+    .trim()
+    .notEmpty()
+    .withMessage("El motivo de desactivación es obligatorio")
+    .isString(),
+  validator,
+];
 
 export const restoreEmployeeMiddleware = [param("id").isInt(), validator];

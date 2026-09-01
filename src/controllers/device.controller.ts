@@ -92,7 +92,7 @@ export const createDevice = async (req: Request, res: Response) => {
 export const getDevices = async (req: Request, res: Response) => {
   const {
     search = "",
-    activo = true,
+    activo,
     categoria_id,
     departamento_id,
     page = 1,
@@ -105,25 +105,49 @@ export const getDevices = async (req: Request, res: Response) => {
   const searchTerm = `%${search}%`;
 
   try {
-    let queryConditions = `WHERE e.activo = $1 AND (e.codigo_inventario ILIKE $2 OR e.nombre ILIKE $2)`;
-    const queryParams: any[] = [activo, searchTerm];
-    let paramIndex = 3;
+    const filterByActivo = activo !== undefined && activo !== "";
+    const activoVal = activo === "true";
+
+    let baseSearchWhere = `WHERE (e.codigo_inventario ILIKE $1 OR e.nombre ILIKE $1 OR e.modelo ILIKE $1)`;
+    const countParams: any[] = [searchTerm];
+    let countParamIdx = 2;
 
     if (categoria_id) {
-      queryConditions += ` AND e.categoria_id = $${paramIndex}`;
-      queryParams.push(categoria_id);
-      paramIndex++;
+      baseSearchWhere += ` AND e.categoria_id = $${countParamIdx}`;
+      countParams.push(categoria_id);
+      countParamIdx++;
     }
 
     if (departamento_id) {
-      queryConditions += ` AND e.departamento_id = $${paramIndex}`;
-      queryParams.push(departamento_id);
-      paramIndex++;
+      baseSearchWhere += ` AND e.departamento_id = $${countParamIdx}`;
+      countParams.push(departamento_id);
+      countParamIdx++;
     }
 
-    const countQuery = `SELECT COUNT(*) FROM equipo e ${queryConditions}`;
-    const countResult = await db.query(countQuery, queryParams);
-    const totalRecords = parseInt(countResult.rows[0].count);
+    const totalsQuery = `
+      SELECT 
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE e.activo = true)::int AS total_activos,
+        COUNT(*) FILTER (WHERE e.activo = false)::int AS total_inactivos
+      FROM equipo e
+      ${baseSearchWhere}
+    `;
+    const totalsResult = await db.query(totalsQuery, countParams);
+    const totals = totalsResult.rows[0];
+
+    let queryConditions = baseSearchWhere;
+    const queryParams: any[] = [...countParams];
+    let queryParamIdx = countParamIdx;
+
+    if (filterByActivo) {
+      queryConditions += ` AND e.activo = $${queryParamIdx}`;
+      queryParams.push(activoVal);
+      queryParamIdx++;
+    }
+
+    const currentTotal = filterByActivo
+      ? (activoVal ? totals.total_activos : totals.total_inactivos)
+      : totals.total_all;
 
     queryParams.push(limitNum, offset);
 
@@ -132,6 +156,8 @@ export const getDevices = async (req: Request, res: Response) => {
         e.id, 
         e.codigo_inventario, 
         e.nombre, 
+        e.categoria_id,
+        e.departamento_id,
         e.estado,
         e.ram,
         e.rom,
@@ -147,22 +173,23 @@ export const getDevices = async (req: Request, res: Response) => {
       INNER JOIN departamento d ON d.id = e.departamento_id
       ${queryConditions}
       ORDER BY e.id ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+      LIMIT $${queryParamIdx} OFFSET $${queryParamIdx + 1}
     `;
 
     const getResult = await db.query(getQuery, queryParams);
 
-    if (getResult.rows.length === 0 && pageNum === 1) {
-      return res.status(404).json({ error: "No hay equipos registrados" });
-    }
-
     res.status(200).json({
       status: "success",
       pagination: {
-        totalRecords,
-        totalPages: Math.ceil(totalRecords / limitNum),
+        totalRecords: currentTotal,
+        totalPages: Math.ceil(currentTotal / limitNum) || 1,
         currentPage: pageNum,
         limit: limitNum,
+        totals: {
+          all: totals.total_all,
+          activos: totals.total_activos,
+          inactivos: totals.total_inactivos,
+        },
       },
       data: getResult.rows,
     });
@@ -222,6 +249,7 @@ export const updateDevice = async (req: Request, res: Response) => {
 export const deleteDevice = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { motivo } = req.body;
 
     const checkQuery = `SELECT 1 FROM equipo WHERE id = $1 AND estado = 'Asignado'`;
     const checkResult = await db.query(checkQuery, [id]);
@@ -237,6 +265,11 @@ export const deleteDevice = async (req: Request, res: Response) => {
 
     if (deleteResult.rowCount === 0) {
       return res.status(404).json({ error: "Equipo no encontrado" });
+    }
+
+    if (motivo) {
+      const historyQuery = `INSERT INTO historial_bajas (entidad, entidad_id, motivo) VALUES ('equipo', $1, $2)`;
+      await db.query(historyQuery, [id, motivo]);
     }
 
     res.status(200).json({
@@ -269,3 +302,25 @@ export const restoreDevice = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Error al recuperar equipo" });
   }
 };
+
+export const getDeviceHistory = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const historyQuery = `
+      SELECT id, entidad, entidad_id, motivo, created_at 
+      FROM historial_bajas 
+      WHERE entidad = 'equipo' AND entidad_id = $1 
+      ORDER BY created_at DESC
+    `;
+    const historyResult = await db.query(historyQuery, [id]);
+
+    res.status(200).json({
+      status: "success",
+      data: historyResult.rows,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener historial del equipo" });
+  }
+};
+

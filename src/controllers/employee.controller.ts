@@ -47,48 +47,67 @@ export const createEmployee = async (req: Request, res: Response) => {
 // Obtener Empleados Registrados
 
 export const getEmployees = async (req: Request, res: Response) => {
-  const {
-    page = 1,
-    limit = 10,
-    activo = true,
-    search = "",
-    rol_id,
-  } = req.query;
-
+  const { page = 1, limit = 10, search = "", activo } = req.query;
   const pageNum = Math.max(1, parseInt(page as string));
   const limitNum = Math.max(1, parseInt(limit as string));
   const offset = (pageNum - 1) * limitNum;
-
+  const searchStr = `%${search}%`;
   try {
-    const countQuery = `SELECT COUNT(*) FROM empleado WHERE activo = $1`;
-    const countResult = await db.query(countQuery, [activo]);
-    const totalRecords = parseInt(countResult.rows[0].count);
-
-    const getQuery = `SELECT e.id, e.ci, e.nombre AS nombre_empelado, d.nombre AS nombre_departamento,
-        r.nombre AS nombre_rol, e.activo FROM empleado e INNER JOIN rol r
-        ON r.id = e.rol_id INNER JOIN departamento d ON d.id = r.departamento_id
-        WHERE e.activo = $1
-        ORDER BY e.id ASC LIMIT $2 OFFSET $3
-        `;
-    const getResult = await db.query(getQuery, [activo, limitNum, offset]);
-
-    if (getResult.rows.length === 0) {
-      return res.status(404).json({ error: "No hay empleados registrados" });
-    }
-
+    const filterByActivo = activo !== undefined && activo !== "";
+    const activoVal = activo === "true";
+    // 1. Obtener contadores globales (Total, Activos, Inactivos) filtrados por la búsqueda
+    const totalsQuery = `
+      SELECT 
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE activo = true)::int AS total_activos,
+        COUNT(*) FILTER (WHERE activo = false)::int AS total_inactivos
+      FROM empleado
+      WHERE (nombre ILIKE $1 OR ci ILIKE $1)
+    `;
+    const totalsResult = await db.query(totalsQuery, [searchStr]);
+    const totals = totalsResult.rows[0];
+    // 2. Definir los parámetros para los registros paginados
+    const whereClause = filterByActivo
+      ? `WHERE (e.nombre ILIKE $1 OR e.ci ILIKE $1) AND e.activo = $4`
+      : `WHERE (e.nombre ILIKE $1 OR e.ci ILIKE $1)`;
+    const queryParams = filterByActivo
+      ? [searchStr, limitNum, offset, activoVal]
+      : [searchStr, limitNum, offset];
+    const currentTotal = filterByActivo
+      ? activoVal
+        ? totals.total_activos
+        : totals.total_inactivos
+      : totals.total_all;
+    // 3. Obtener registros paginados
+    const getQuery = `
+      SELECT e.id, e.ci, e.nombre AS nombre_empleado, e.rol_id, d.nombre AS nombre_departamento,
+             r.nombre AS nombre_rol, e.activo 
+      FROM empleado e 
+      INNER JOIN rol r ON r.id = e.rol_id 
+      INNER JOIN departamento d ON d.id = r.departamento_id
+      ${whereClause}
+      ORDER BY e.id ASC LIMIT $2 OFFSET $3
+    `;
+    const getResult = await db.query(getQuery, queryParams);
+    // 4. Responder con los totales en la propiedad `totals`
     res.status(200).json({
       status: "success",
       pagination: {
-        totalRecords,
-        totalPages: Math.ceil(totalRecords / limitNum),
+        totalRecords: currentTotal,
+        totalPages: Math.ceil(currentTotal / limitNum),
         currentPage: pageNum,
         limit: limitNum,
+        totals: {
+          all: totals.total_all,
+          activos: totals.total_activos,
+          inactivos: totals.total_inactivos,
+        },
       },
       data: getResult.rows,
     });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Error al obtener empelados" });
+    res.status(500).json({ error: "Error al obtener empleados" });
   }
 };
 
@@ -114,7 +133,6 @@ export const updateEmployee = async (req: Request, res: Response) => {
       response: "Empleado actualizado",
     });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: "Error al actualizar empleado" });
   }
 };
@@ -151,12 +169,18 @@ export const getOneEmployee = async (req: Request, res: Response) => {
 export const deleteEmployee = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const { motivo } = req.body;
 
     const deleteQuery = `UPDATE empleado SET activo = false WHERE id = $1`;
     const resultQuery = await db.query(deleteQuery, [id]);
 
     if (resultQuery.rowCount === 0) {
-      return res.status(404).json({ error: "Empleado no encontardo" });
+      return res.status(404).json({ error: "Empleado no encontrado" });
+    }
+
+    if (motivo) {
+      const historyQuery = `INSERT INTO historial_bajas (entidad, entidad_id, motivo) VALUES ('empleado', $1, $2)`;
+      await db.query(historyQuery, [id, motivo]);
     }
 
     res.status(200).json({
@@ -191,3 +215,27 @@ export const restoreEmployee = async (req: Request, res: Response) => {
     res.status(500).json({ error: "Error al recuperar empleado" });
   }
 };
+
+//Obtener historial de motivos de desactivacion de un empleado
+
+export const getEmployeeHistory = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const historyQuery = `
+      SELECT id, entidad, entidad_id, motivo, created_at 
+      FROM historial_bajas 
+      WHERE entidad = 'empleado' AND entidad_id = $1 
+      ORDER BY created_at DESC
+    `;
+    const historyResult = await db.query(historyQuery, [id]);
+
+    res.status(200).json({
+      status: "success",
+      data: historyResult.rows,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener historial del empleado" });
+  }
+};
+

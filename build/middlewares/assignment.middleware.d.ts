@@ -1,0 +1,3 @@
+export declare const createAssignmentMiddleware: (((req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => import("express").Response<any, Record<string, any>> | undefined) | import("express-validator").ValidationChain)[];
+export declare const deleteAssignmenteMiddleware: (((req: import("express").Request, res: import("express").Response, next: import("express").NextFunction) => import("express").Response<any, Record<string, any>> | undefined) | import("express-validator").ValidationChain)[];
+//# sourceMappingURL=assignment.middleware.d.ts.map

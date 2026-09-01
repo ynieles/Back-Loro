@@ -6,49 +6,56 @@ export const createDeviceMiddleware = [
     .trim()
     .toUpperCase()
     .notEmpty()
-    .withMessage("El codigo de inventario es obligatorio")
+    .withMessage("El código de inventario es obligatorio")
     .isString(),
-  body("nombre").trim().isString(),
   body("categoria_id")
     .trim()
     .notEmpty()
-    .withMessage("La categoria es obligatoria")
+    .withMessage("La categoría es obligatoria")
     .isInt(),
   body("departamento_id")
     .trim()
     .notEmpty()
     .withMessage("El departamento es obligatorio")
     .isInt(),
-  body("ram").trim().isString(),
-  body("rom").trim().isString().toUpperCase(),
-  body("modelo").trim().isString().toUpperCase(),
-  body("numero_telefono").trim().isString(),
-  body("imei").trim().isString(),
-  body("observaciones").trim().isString(),
+  body("nombre").optional({ checkFalsy: true }).trim().isString(),
+  body("ram").optional({ checkFalsy: true }).trim().isString(),
+  body("rom").optional({ checkFalsy: true }).trim().isString().toUpperCase(),
+  body("modelo").optional({ checkFalsy: true }).trim().isString().toUpperCase(),
+  body("numero_telefono").optional({ checkFalsy: true }).trim().isString(),
+  body("imei").optional({ checkFalsy: true }).trim().isString(),
+  body("observaciones").optional({ checkFalsy: true }).trim().isString(),
   validator,
 ];
 
 export const updateDeviceMiddleare = [
-  body("nombre").trim().isString(),
   body("categoria_id")
     .trim()
     .notEmpty()
-    .withMessage("La categoria es obligatoria"),
+    .withMessage("La categoría es obligatoria"),
   body("departamento_id")
     .trim()
     .notEmpty()
     .withMessage("El departamento es obligatorio"),
-  body("estado").trim().isString(),
-  body("estado").trim().isString(),
-  body("ram").trim().isString(),
-  body("rom").trim().isString().toUpperCase(),
-  body("modelo").trim().isString().toUpperCase(),
-  body("numero_telefono").trim().isString(),
-  body("imei").trim().isString(),
-  body("observaciones").trim().isString(),
+  body("nombre").optional({ checkFalsy: true }).trim().isString(),
+  body("estado").optional({ checkFalsy: true }).trim().isString(),
+  body("ram").optional({ checkFalsy: true }).trim().isString(),
+  body("rom").optional({ checkFalsy: true }).trim().isString().toUpperCase(),
+  body("modelo").optional({ checkFalsy: true }).trim().isString().toUpperCase(),
+  body("numero_telefono").optional({ checkFalsy: true }).trim().isString(),
+  body("imei").optional({ checkFalsy: true }).trim().isString(),
+  body("observaciones").optional({ checkFalsy: true }).trim().isString(),
   validator,
 ];
 
-export const deleteDeviceMiddleware = [param("id").trim().isInt(), validator];
+export const deleteDeviceMiddleware = [
+  param("id").trim().isInt(),
+  body("motivo")
+    .trim()
+    .notEmpty()
+    .withMessage("El motivo de desactivación es obligatorio")
+    .isString(),
+  validator,
+];
 
 export const restoreDeviceMiddleware = [param("id").trim().isInt(), validator];

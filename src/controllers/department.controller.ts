@@ -36,34 +36,53 @@ export const createDepartment = async (req: Request, res: Response) => {
 //Obtener todos los departamentos
 
 export const getDepartments = async (req: Request, res: Response) => {
-  const { page = 1, limit = 10, activo = true } = req.query;
-
+  const { page = 1, limit = 10, search = "", activo } = req.query;
   const pageNum = Math.max(1, parseInt(page as string));
   const limitNum = Math.max(1, parseInt(limit as string));
   const offset = (pageNum - 1) * limitNum;
-
+  const searchStr = `%${search}%`;
   try {
-    const countQuery = `SELECT COUNT(*) FROM departamento WHERE activo = $1`;
-    const countResult = await db.query(countQuery, [activo]);
-    const totalRecords = parseInt(countResult.rows[0].count);
-
-    const getQuery = `SELECT id, nombre, activo FROM departamento WHERE activo = $1
+    const filterByActivo = activo !== undefined && activo !== "";
+    const activoVal = activo === "true";
+    // 1. Agregación de Totales (Total, Activos, Inactivos)
+    const totalsQuery = `
+      SELECT 
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE activo = true)::int AS total_activos,
+        COUNT(*) FILTER (WHERE activo = false)::int AS total_inactivos
+      FROM departamento
+      WHERE nombre ILIKE $1
+    `;
+    const totalsResult = await db.query(totalsQuery, [searchStr]);
+    const totals = totalsResult.rows[0];
+    // 2. Cláusula WHERE dinámica
+    const whereClause = filterByActivo
+      ? `WHERE nombre ILIKE $1 AND activo = $4`
+      : `WHERE nombre ILIKE $1`;
+    const queryParams = filterByActivo
+      ? [searchStr, limitNum, offset, activoVal]
+      : [searchStr, limitNum, offset];
+    const currentTotal = filterByActivo
+      ? activoVal
+        ? totals.total_activos
+        : totals.total_inactivos
+      : totals.total_all;
+    // 3. Consulta de Datos Paginados
+    const getQuery = `SELECT id, nombre, activo FROM departamento ${whereClause}
       ORDER BY id ASC LIMIT $2 OFFSET $3`;
-    const getResult = await db.query(getQuery, [activo, limit, offset]);
-
-    if (getResult.rows.length === 0) {
-      return res.status(404).json({
-        error: "No hay departamentos registrados",
-      });
-    }
-
+    const getResult = await db.query(getQuery, queryParams);
     res.status(200).json({
       status: "success",
       pagination: {
-        totalRecords,
-        totalPages: Math.ceil(totalRecords / limitNum),
+        totalRecords: currentTotal,
+        totalPages: Math.ceil(currentTotal / limitNum) || 1,
         currentPage: pageNum,
         limit: limitNum,
+        totals: {
+          all: totals.total_all,
+          activos: totals.total_activos,
+          inactivos: totals.total_inactivos,
+        },
       },
       data: getResult.rows,
     });

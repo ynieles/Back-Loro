@@ -1,4 +1,5 @@
 import express from "express";
+import { requireRole } from "../middlewares/auth.middleware.js";
 import {
   createCategoryMiddleware,
   deleteCategoryMiddleware,
@@ -16,17 +17,18 @@ import {
 } from "../controllers/category.controller.js";
 
 const router = express.Router();
+const canMutate = requireRole(["admin", "administrador", "supervisor"]);
 
-router.post("/", createCategoryMiddleware, createCategory);
+router.post("/", canMutate, createCategoryMiddleware, createCategory);
 
 router.get("/", getCategorys);
 
 router.get("/:nombre", getOneCategoryMiddleware, getOneCategory);
 
-router.put("/:id", updateCategoryMiddleware, updateCategory);
+router.put("/:id", canMutate, updateCategoryMiddleware, updateCategory);
 
-router.delete("/:id", deleteCategoryMiddleware, deleteCategory);
+router.delete("/:id", canMutate, deleteCategoryMiddleware, deleteCategory);
 
-router.patch("/restore/:id", restoreCategoryMiddleware, restoreCategory);
+router.patch("/restore/:id", canMutate, restoreCategoryMiddleware, restoreCategory);
 
 export default router;

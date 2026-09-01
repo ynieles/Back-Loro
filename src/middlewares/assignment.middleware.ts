@@ -17,5 +17,10 @@ export const createAssignmentMiddleware = [
 
 export const deleteAssignmenteMiddleware = [
   param("id").trim().isInt(),
+  body("motivo")
+    .trim()
+    .notEmpty()
+    .withMessage("El motivo de finalización es obligatorio")
+    .isString(),
   validator,
 ];

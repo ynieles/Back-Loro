@@ -1,4 +1,5 @@
 import express from "express";
+import { requireRole } from "../middlewares/auth.middleware.js";
 import {
   createDepartment,
   deleteDepartment,
@@ -16,17 +17,19 @@ import {
 } from "../middlewares/department.middleware.js";
 
 const router = express.Router();
+const canMutate = requireRole(["admin", "administrador", "supervisor"]);
 
-router.post("/", createDepartmentMiddleware, createDepartment);
+router.post("/", canMutate, createDepartmentMiddleware, createDepartment);
 
 router.get("/", getDepartments);
 
 router.get("/:nombre", getOneDeparmentMiddleware, getOneDeparment);
 
-router.patch("/:id", updateDepartmentMiddleware, updateDepartment);
+router.put("/:id", canMutate, updateDepartmentMiddleware, updateDepartment);
+router.patch("/:id", canMutate, updateDepartmentMiddleware, updateDepartment);
 
-router.delete("/:id", deleteDepartmentMiddleware, deleteDepartment);
+router.delete("/:id", canMutate, deleteDepartmentMiddleware, deleteDepartment);
 
-router.patch("/restore/:id", restoreDepartmentMiddleware, restoreDepartment);
+router.patch("/restore/:id", canMutate, restoreDepartmentMiddleware, restoreDepartment);
 
 export default router;

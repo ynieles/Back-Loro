@@ -45,32 +45,60 @@ export const createRole = async (req: Request, res: Response) => {
 
 //Obtener roles
 export const getRoles = async (req: Request, res: Response) => {
-  const { page = 1, limit = 10, activo = true } = req.query;
+  const { page = 1, limit = 10, search = "", activo } = req.query;
 
   const pageNum = Math.max(1, parseInt(page as string));
   const limitNum = Math.max(1, parseInt(limit as string));
   const offset = (pageNum - 1) * limitNum;
+  const searchStr = `%${search}%`;
+
   try {
-    const countQuery = `SELECT COUNT(*) FROM rol WHERE activo = $1`;
-    const countResult = await db.query(countQuery, [activo]);
-    const totalRecords = parseInt(countResult.rows[0].count);
+    const filterByActivo = activo !== undefined && activo !== "";
+    const activoVal = activo === "true";
 
-    const getQuery = `SELECT r.id,  r.nombre as nombre_rol, d.nombre as nombre_departamento, r.activo from rol r
-    INNER JOIN departamento d on r.departamento_id = d.id WHERE r.activo = $1
-     ORDER BY r.id ASC LIMIT $2 OFFSET  $3`;
-    const getResult = await db.query(getQuery, [activo, limitNum, offset]);
+    const totalsQuery = `
+      SELECT 
+        COUNT(*)::int AS total_all,
+        COUNT(*) FILTER (WHERE r.activo = true)::int AS total_activos,
+        COUNT(*) FILTER (WHERE r.activo = false)::int AS total_inactivos
+      FROM rol r
+      INNER JOIN departamento d ON r.departamento_id = d.id
+      WHERE (r.nombre ILIKE $1 OR d.nombre ILIKE $1)
+    `;
+    const totalsResult = await db.query(totalsQuery, [searchStr]);
+    const totals = totalsResult.rows[0];
 
-    if (getResult.rows.length === 0) {
-      return res.status(404).json({ error: "No hay roles registrados" });
-    }
+    const whereClause = filterByActivo
+      ? `WHERE (r.nombre ILIKE $1 OR d.nombre ILIKE $1) AND r.activo = $4`
+      : `WHERE (r.nombre ILIKE $1 OR d.nombre ILIKE $1)`;
+
+    const queryParams = filterByActivo
+      ? [searchStr, limitNum, offset, activoVal]
+      : [searchStr, limitNum, offset];
+
+    const currentTotal = filterByActivo
+      ? (activoVal ? totals.total_activos : totals.total_inactivos)
+      : totals.total_all;
+
+    const getQuery = `SELECT r.id, r.nombre as nombre_rol, r.departamento_id, d.nombre as nombre_departamento, r.activo 
+      FROM rol r
+      INNER JOIN departamento d ON r.departamento_id = d.id 
+      ${whereClause}
+      ORDER BY r.id ASC LIMIT $2 OFFSET $3`;
+    const getResult = await db.query(getQuery, queryParams);
 
     res.status(200).json({
       status: "success",
       pagination: {
-        totalRecords,
-        totalPages: Math.ceil(totalRecords / limitNum),
-        currentePage: pageNum,
+        totalRecords: currentTotal,
+        totalPages: Math.ceil(currentTotal / limitNum) || 1,
+        currentPage: pageNum,
         limit: limitNum,
+        totals: {
+          all: totals.total_all,
+          activos: totals.total_activos,
+          inactivos: totals.total_inactivos,
+        },
       },
       data: getResult.rows,
     });
